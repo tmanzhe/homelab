@@ -1,0 +1,9 @@
+- name: Bootstrap first RKE2 server (node1) 
+  hosts: control_plane 
+  become: true
+  roles: 
+    - role: rke2 
+      vars: 
+        rke2_role: server 
+
+  

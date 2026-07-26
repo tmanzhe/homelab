@@ -1,0 +1,9 @@
+[control_plane]
+node1 ansible_host=192.168.1.100 ansible_user=your_ssh_user
+
+[workers]
+# node2 ansible_host=192.168.1.101 ansible_user=your_ssh_user
+
+[k8s_cluster:children]
+control_plane
+workers

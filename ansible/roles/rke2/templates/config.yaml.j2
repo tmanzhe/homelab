@@ -1,0 +1,9 @@
+# RKE2 is the engine runnin gon the server. WHen we install RKE2 it runs the k8s API server. 
+# kubctl is just the remote control, we run kubectl on our laptop or on the server to send commands toeRKE2 
+# So this sets up the setting sofr that., where ansible fills up our servers IP and name. 
+
+tls-san:
+  - "{{ ansible_host }}"
+  - "192.168.0.228"
+  - "{{ inventory_hostname }}"
+write-kubeconfig-mode: "0600"

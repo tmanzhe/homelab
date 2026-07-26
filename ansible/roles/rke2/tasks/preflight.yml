@@ -1,0 +1,38 @@
+# =========================================
+# RKE2 PREFLIGHT CHECKS 
+# Purpose: Ensures that we validate that the system env meets the k8 requirements 
+# The main purpose so far is to check if a swap is completely disabled. Swap space is a dedicated area on a server's HDD/SSD 
+# And it is used as an extension of physical RAM. When we run out of RAM Linux moves inactive memory pages over to slower disk drive 
+# to prevent the system from crashing. Issue is that reading from HDD/SSD is so much slower. 
+# =========================================
+
+# Turns off all active swap space on live running system. We check if swap is active if its > 0 
+- name: Disable swap immediately 
+  ansible.builtin.command: swapoff -a 
+  when: ansible_swaptotal_mb > 0 
+  changed_when: true 
+
+# Makes the swap config permanent so swap doesnt accidentally turn back on when the server restarts 
+# Linux looks at a file called /etc/fstab (file system table) whenever it boots up to see what storage and swap to turn on. 
+# The tasks opens that file, searche sfo rany active line containing the word swap and uses regex and addes # in front of it. 
+- name: Prevent swap from re-enabling on reboot
+  ansible.builtin.replace:
+    path: /etc/fstab
+    regexp: '^([^#].*\sswap\s.*)$'
+    replace: '#\1'
+
+# Checks if the Ubunutu built in firewall is running on the system. 
+# Exec ufw status and saves the txt output of that cmd into a temp var named ufw_status usign register keyword 
+- name: Check if ufw is active 
+  ansible.builtin.command: ufw status
+  register: ufw_status 
+  changed_when: false 
+  failed_when: false 
+
+# Warns if ufw is active, looks for the saved txt output from prev task to see it Stats: active is found anywhere 
+- name: Warn if ufw is active
+  ansible.builtin.debug:
+    msg: >
+      ufw appears active — port 6443/tcp may need opening later
+      for remote kubectl access (e.g. `sudo ufw allow 6443/tcp`).
+  when: "'Status: active' in ufw_status.stdout"

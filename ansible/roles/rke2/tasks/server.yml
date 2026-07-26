@@ -1,0 +1,92 @@
+# Get RKE2 actually running and confirmed healthy on node 1
+# Pull the proof (a working kubeconifg) and that cluster's join secret back onto the mac into the fetched/
+# Directly uses the config.yaml.j2 file we wrote earlier via the template module which fire  up the restart rke2 server handler we defined earlier 
+
+# Needs somewhere to land, makes sure folder exists 
+- name: Ensure /etc/rancher/rke2 exists
+  ansible.builtin.file:
+    path: /etc/rancher/rke2
+    state: directory
+    mode: "0755"
+
+# Payoff of the file we just wrote, queues the handler, but only fires it if this task acc report changed
+- name: Deploy RKE2 server config 
+  ansible.builtin.template: 
+    src: config.yaml.j2 
+    dest: /etc/rancher/rke2/config.yaml
+    mode: "0600"
+  notify: restart rke2-server 
+
+# Turns the service on. Start automatically on future boot, re-read unit files first 
+- name: Enable and start rke2-server 
+  ansible.builtin.systemd_service: 
+    name: rke2-server 
+    enabled: true 
+    state: started 
+    daemon_reload: true 
+
+# Pauses the whole playbook here and polls for rke2.yml to exists. We only write that file once its reached a minimally working state
+- name: Wait for kubeconfig to be written 
+  ansible.builtin.wait_for: 
+    path: /etc/rancher/rke2/rke2.yaml
+    timeout: 300
+
+# Retry loop pattern from earlier. run kubectl get nodes usign RKE2s own bundled kubectl binary 
+- name: Wait for node1 to report Ready 
+  ansible.builtin.command: /var/lib/rancher/rke2/bin/kubectl --kubeconfig /etc/rancher/rke2/rke2.yaml get nodes
+  register: node_status 
+  until: "'Ready' in node_status.stdout"
+  retries: 30 
+  delay: 10 
+  changed_when: false 
+
+# Reads the join token file raw bytes off node 1
+- name: Read the node-token 
+  ansible.builtin.slurp:
+    src: /var/lib/rancher/rke2/server/node-token
+  register: rke2_node_token_raw
+  no_log: true
+
+# All prev tasks were ran on node1, now its going to be running on our control machine instead (mac). 
+# So a single play can both config a remote server and writes back files to my own machine in one continous run 
+
+# Creates ansible/fetched/node1 on mac, and the playbook dir is a built in ansible var.
+- name: Ensure local fetch dir exists 
+  ansible.builtin.file:
+    path: "{{ playbook_dir }}/fetched/{{ inventory_hostname }}"
+    state: directory 
+    mode: "0700"
+  delegate_to: localhost 
+
+# Write the actual token file locally. reaches into var from task 6 and pulls out its .content and pipes via b64decode filter to turn it back into readable text before writing it out
+- name: Save node-token locally 
+  ansible.builtin.copy: 
+    content: "{{ rke2_node_token_raw.content | b64decode }}"
+    dest: "{{ playbook_dir}}/fetched/{{ inventory_hostname}}/node-token"
+    mode: "0600"
+  delegate_to: localhost
+  no_log: true 
+
+# Reverse of template/copy, pulls a file from the remote host to the control machine
+- name: Fetch kubeconfig to control machine
+  ansible.builtin.fetch:
+    src: /etc/rancher/rke2/rke2.yaml
+    dest: "{{ playbook_dir }}/fetched/{{ inventory_hostname }}/rke2.yaml"
+    flat: true
+    mode: "0600"
+
+#The fix for localhost vs real ip problem. RKE2s kubeconfig defaults potining to 127.0.0.1 which only means node1 itself from node1s perspective 
+# This regex swaps for node1s actual IP so our Mac's kubectl can reach it 
+- name: Point fetched kubeconfig at the real node IP
+  ansible.builtin.replace:
+    path: "{{ playbook_dir }}/fetched/{{ inventory_hostname }}/rke2.yaml"
+    regexp: 'https://127\.0\.0\.1:6443'
+    replace: "https://{{ ansible_host }}:6443"
+  delegate_to: localhost
+
+# The final permission lockdown on the local copy, 
+- name: Lock down local kubeconfig permissions
+  ansible.builtin.file:
+    path: "{{ playbook_dir }}/fetched/{{ inventory_hostname }}/rke2.yaml"
+    mode: "0600"
+  delegate_to: localhost
