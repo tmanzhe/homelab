@@ -1,0 +1,8 @@
+services:
+  ansible:
+    build: .
+    volumes:
+      - ../ansible:/ansible
+      - ~/.ssh:/root/.ssh:ro
+    working_dir: /ansible
+    command: ["ansible-playbook", "playbook.yaml"]
