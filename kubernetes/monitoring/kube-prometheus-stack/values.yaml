@@ -1,0 +1,74 @@
+# Helm values for kube-prometheus-stack (Prometheus + Grafana + Alertmanager).
+#
+# Deployed by ArgoCD via kubernetes/argocd/applications/kube-prometheus-stack-app.yaml
+#
+# All three components store data on iscsi-fast — the StorageClass backed by
+# democratic-csi + TrueNAS. Block storage, not NFS: Prometheus explicitly does
+# not support NFS for its TSDB ("unrecoverable corruptions may happen").
+# See https://prometheus.io/docs/prometheus/latest/storage/
+
+# ---------------------------------------------------------------------------
+# Prometheus — the metrics database itself
+# ---------------------------------------------------------------------------
+prometheus:
+  prometheusSpec:
+    # HDD-backed storage, so keep the working set modest. retentionSize is
+    # deliberately below the volume size to leave headroom for compaction,
+    # which briefly needs space for both old and new blocks at once.
+    retention: 15d
+    retentionSize: 20GB
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: iscsi-fast
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 30Gi
+
+# ---------------------------------------------------------------------------
+# Grafana 
+# ---------------------------------------------------------------------------
+grafana:
+  persistence:
+    enabled: true
+    type: pvc
+    storageClassName: iscsi-fast
+    accessModes: ["ReadWriteOnce"]
+    size: 5Gi
+  # NOTE: admin password is left at the chart default (admin / prom-operator).
+  # Change it on first login. Once sealed-secrets is installed this should
+  # become grafana.admin.existingSecret so it is never a known default.
+
+# ---------------------------------------------------------------------------
+# Alertmanager — routes alerts (nothing is configured to fire yet)
+# ---------------------------------------------------------------------------
+alertmanager:
+  alertmanagerSpec:
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: iscsi-fast
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 2Gi
+
+# ---------------------------------------------------------------------------
+# RKE2 compatibility
+# ---------------------------------------------------------------------------
+# RKE2 binds these control-plane components to 127.0.0.1, so Prometheus cannot
+# reach them and they would sit permanently "Down" in the targets page. The
+# alternatives are rebinding them to 0.0.0.0 (widens exposure) or running a
+# separate agent DaemonSet on control-plane nodes. Neither is worth it here:
+# node, kubelet, pod and application metrics all still work, which is nearly
+# everything that matters for a homelab. Revisit if control-plane internals
+# ever become interesting.
+kubeControllerManager:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeProxy:
+  enabled: false
+kubeEtcd:
+  enabled: false
