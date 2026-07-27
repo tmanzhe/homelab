@@ -1,3 +1,4 @@
 fetched/
 *.token
 inventory.ini
+iscsi-driver-config.yaml

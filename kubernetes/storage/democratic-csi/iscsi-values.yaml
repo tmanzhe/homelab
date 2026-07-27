@@ -1,0 +1,33 @@
+# Helm values for the democratic-csi chart, iSCSI flavour.
+#
+# Safe to commit: everything sensitive (TrueNAS API key, dataset paths, portal
+# IDs) lives in the democratic-csi-iscsi-config Secret instead, which this file
+# only references by name. See iscsi-driver-config.yaml.example.
+#
+# Deployed by ArgoCD via kubernetes/argocd/applications/democratic-csi-iscsi-app.yaml
+
+# Must be unique per democratic-csi install. A future NFS release for the 4TB
+# pool will use org.democratic-csi.nfs, so the two can coexist without colliding.
+csiDriver:
+  name: org.democratic-csi.iscsi
+
+driver:
+  # The chart mounts this Secret's driver-config-file.yaml key into the pod.
+  existingConfigSecret: democratic-csi-iscsi-config
+  config:
+    # Still required even with existingConfigSecret — the chart reads this for
+    # templating decisions beyond creating the secret.
+    driver: freenas-api-iscsi
+
+storageClasses:
+  - name: iscsi-fast
+    defaultClass: false
+    reclaimPolicy: Delete
+    volumeBindingMode: Immediate
+    allowVolumeExpansion: true
+    parameters:
+      # node1 formats the raw block device it receives from TrueNAS. This local
+      # filesystem is why iSCSI satisfies databases (Prometheus TSDB, Postgres)
+      # that NFS cannot — every rename/lock/fsync is handled by node1's own
+      # kernel, exactly as on a physically attached disk.
+      fsType: ext4

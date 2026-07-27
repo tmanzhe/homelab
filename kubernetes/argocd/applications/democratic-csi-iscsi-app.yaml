@@ -1,0 +1,32 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: democratic-csi-iscsi
+  namespace: argocd
+spec:
+  project: default
+
+  # Multi-source: one source supplies the upstream Helm chart, the other
+  # supplies our values file from this repo. The `ref: values` alias below is
+  # what lets the chart source reach into the git source via $values.
+  sources:
+    - repoURL: https://democratic-csi.github.io/charts/
+      chart: democratic-csi
+      targetRevision: "0.15.1"      # pinned, same reasoning as the RKE2 version pin
+      helm:
+        valueFiles:
+          - $values/kubernetes/storage/democratic-csi/iscsi-values.yaml
+    - repoURL: https://github.com/tmanzhe/homelab.git
+      targetRevision: main
+      ref: values
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: democratic-csi
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

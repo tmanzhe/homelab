@@ -1,0 +1,49 @@
+# Template for iscsi-driver-config.yaml (which is gitignored, since it holds a real API key).
+#
+# Copy this file to iscsi-driver-config.yaml, fill in the API key, then load it
+# into the cluster as a Secret — the democratic-csi chart mounts it into the
+# driver pod as a file named driver-config-file.yaml:
+#
+#   kubectl create secret generic democratic-csi-iscsi-config \
+#     -n democratic-csi \
+#     --from-file=driver-config-file.yaml=kubernetes/storage/democratic-csi/iscsi-driver-config.yaml
+#
+# Generate the API key in the TrueNAS UI: account menu -> API Keys -> Add.
+
+driver: freenas-api-iscsi
+
+# How the driver reaches the TrueNAS REST API to create zvols/targets/extents.
+httpConnection:
+  protocol: http
+  host: 192.168.0.18          # TrueNAS's LAN IP
+  port: 80
+  apiKey: "your-truenas-api-key-here"
+  allowInsecure: true
+  apiVersion: 2
+
+# Where volumes get created. Both datasets must already exist, and `snaps` must
+# NOT be nested inside `vols` — otherwise the driver would scan its own
+# snapshots as if they were volumes.
+zfs:
+  datasetParentName: HDD1_500gb_mirror/k8s/vols
+  detachedSnapshotsDatasetParentName: HDD1_500gb_mirror/k8s/snaps
+  zvolEnableReservation: false
+
+# iSCSI settings applied to every target the driver creates.
+# The portal and initiator group must be created by hand in the TrueNAS UI
+# first (Shares -> Block (iSCSI) Shares Targets); these are their numeric IDs.
+iscsi:
+  targetPortal: "192.168.0.18:3260"    # 3260 is the standard iSCSI port
+  namePrefix: csi-
+  nameSuffix: "-homelab"
+  targetGroups:
+    - targetGroupPortalGroup: 1
+      targetGroupInitiatorGroup: 1
+      targetGroupAuthType: None        # no CHAP; trusted LAN only
+      targetGroupAuthGroup:
+  extentInsecureTpc: true
+  extentXenCompat: false
+  extentDisablePhysicalBlocksize: true
+  extentBlocksize: 512
+  extentRpm: "7200"                    # spinning disks, not SSD
+  extentAvailThreshold: 0

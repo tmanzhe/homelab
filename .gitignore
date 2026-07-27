@@ -1,3 +1,7 @@
 .DS_Store
 .claude/
 *.swp
+
+# Real democratic-csi driver config — contains the TrueNAS API key.
+# Commit iscsi-driver-config.yaml.example instead.
+iscsi-driver-config.yaml

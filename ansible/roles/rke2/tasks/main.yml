@@ -4,6 +4,9 @@
 - name: Install RKE2 
   ansible.builtin.import_tasks: install.yml 
 
+- name: Install storage client packages
+  ansible.builtin.import_tasks: storage.yml
+
 - name: Configure and start RKE2 server 
   ansible.builtin.import_tasks: server.yml
   when: rke2_role == "server"

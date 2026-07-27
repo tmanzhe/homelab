@@ -1,0 +1,35 @@
+# =========================================
+# STORAGE CLIENT PACKAGES
+# Purpose: kubelet (RKE2's per-node agent) is what actually performs the mount
+# when a Pod claims a volume. democratic-csi only talks to TrueNAS's API — it
+# never mounts anything itself. So node1 needs the OS-level client tools for
+# both protocols before any PersistentVolumeClaim can work.
+#   nfs-common       -> NFS client (file-level; for the future 4TB/Immich tier)
+#   open-iscsi       -> iSCSI initiator (block-level; for metrics/databases)
+#   lsscsi, sg3-utils-> SCSI inspection tools democratic-csi shells out to
+#   multipath-tools  -> upstream's recommendation; only load-bearing with multiple network paths
+# =========================================
+
+- name: Install storage client packages
+  ansible.builtin.apt:
+    name:
+      - nfs-common
+      - open-iscsi
+      - lsscsi
+      - sg3-utils
+      - multipath-tools
+    state: present
+    update_cache: true
+
+# The iSCSI initiator daemon must be running for node1 to attach block devices
+- name: Enable and start iscsid
+  ansible.builtin.systemd_service:
+    name: iscsid
+    enabled: true
+    state: started
+
+- name: Enable and start multipath-tools
+  ansible.builtin.systemd_service:
+    name: multipath-tools
+    enabled: true
+    state: started
