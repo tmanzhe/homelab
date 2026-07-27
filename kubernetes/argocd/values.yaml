@@ -1,0 +1,11 @@
+#argoCD equivalent of groups_vars/all.yml or config.yaml.j2 
+
+configs: 
+  params:
+    server.insecure: true 
+
+server: 
+  ingress: 
+    enabled: true 
+    ingressClassName: nginx 
+    hostname: argocd.homelab.lan 
