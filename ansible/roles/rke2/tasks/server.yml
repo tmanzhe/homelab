@@ -51,12 +51,13 @@
 # So a single play can both config a remote server and writes back files to my own machine in one continous run 
 
 # Creates ansible/fetched/node1 on mac, and the playbook dir is a built in ansible var.
-- name: Ensure local fetch dir exists 
+- name: Ensure local fetch dir exists
   ansible.builtin.file:
     path: "{{ playbook_dir }}/fetched/{{ inventory_hostname }}"
-    state: directory 
+    state: directory
     mode: "0700"
-  delegate_to: localhost 
+  delegate_to: localhost
+  become: false
 
 # Write the actual token file locally. reaches into var from task 6 and pulls out its .content and pipes via b64decode filter to turn it back into readable text before writing it out
 - name: Save node-token locally 
@@ -65,7 +66,8 @@
     dest: "{{ playbook_dir}}/fetched/{{ inventory_hostname}}/node-token"
     mode: "0600"
   delegate_to: localhost
-  no_log: true 
+  become: false
+  no_log: true
 
 # Reverse of template/copy, pulls a file from the remote host to the control machine
 - name: Fetch kubeconfig to control machine
@@ -83,6 +85,7 @@
     regexp: 'https://127\.0\.0\.1:6443'
     replace: "https://{{ ansible_host }}:6443"
   delegate_to: localhost
+  become: false
 
 # The final permission lockdown on the local copy, 
 - name: Lock down local kubeconfig permissions
@@ -90,3 +93,4 @@
     path: "{{ playbook_dir }}/fetched/{{ inventory_hostname }}/rke2.yaml"
     mode: "0600"
   delegate_to: localhost
+  become: false
